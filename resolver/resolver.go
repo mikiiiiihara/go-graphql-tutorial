@@ -10,31 +10,6 @@ type Resolver struct {
 	db *gorm.DB
 }
 
-type User struct {
-	ID       uint   `json:"id"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"-"`
-}
-
-type Ticker struct {
-	ProductCode      string  `json:"product_code"`
-	State            string  `json:"state"`
-	Timestamp        string  `json:"timestamp"`
-	TickID           int     `json:"tick_id"`
-	BestBid          float64 `json:"best_bid"`
-	BestAsk          float64 `json:"best_ask"`
-	BestBidSize      float64 `json:"best_bid_size"`
-	BestAskSize      float64 `json:"best_ask_size"`
-	TotalBidDepth    float64 `json:"total_bid_depth"`
-	TotalAskDepth    float64 `json:"total_ask_depth"`
-	MarketBidSize    float64 `json:"market_bid_size"`
-	MarketAskSize    float64 `json:"market_ask_size"`
-	Ltp              float64 `json:"ltp"`
-	Volume           float64 `json:"volume"`
-	VolumeByProduct  float64 `json:"volume_by_product"`
-}
-
 func NewResolver(db *gorm.DB) *Resolver {
 	return &Resolver{db: db}
 }
@@ -116,15 +91,7 @@ func (r *Resolver) CreateSchema() (graphql.Schema, error) {
 						Type: graphql.NewNonNull(graphql.String),
 					},
 				},
-				Resolve: func(params graphql.ResolveParams) (interface{}, error) {
-					user := User{
-						Name:     params.Args["name"].(string),
-						Email:    params.Args["email"].(string),
-						Password: params.Args["password"].(string),
-					}
-					r.db.Create(&user)
-					return user, nil
-				},
+				Resolve: r.CreateUser,
 			},
 			"updateUser": &graphql.Field{
 				Type: userType,
@@ -142,26 +109,7 @@ func (r *Resolver) CreateSchema() (graphql.Schema, error) {
 						Type: graphql.String,
 					},
 				},
-				Resolve: func(params graphql.ResolveParams) (interface{}, error) {
-					id := params.Args["id"].(int)
-					var user User
-					r.db.First(&user, id)
-	
-					if name, ok := params.Args["name"].(string); ok {
-						user.Name = name
-					}
-	
-					if email, ok := params.Args["email"].(string); ok {
-						user.Email = email
-					}
-	
-					if password, ok := params.Args["password"].(string); ok {
-						user.Password = password
-					}
-	
-					r.db.Save(&user)
-					return user, nil
-				},
+				Resolve: r.UpdateUser,
 			},
 			"deleteUser": &graphql.Field{
 				Type: userType,
@@ -170,13 +118,7 @@ func (r *Resolver) CreateSchema() (graphql.Schema, error) {
 						Type: graphql.NewNonNull(graphql.Int),
 					},
 				},
-				Resolve: func(params graphql.ResolveParams) (interface{}, error) {
-					id := params.Args["id"].(int)
-					var user User
-					r.db.First(&user, id)
-					r.db.Delete(&user)
-					return user, nil
-				},
+				Resolve: r.DeleteUser,
 			},
 		},
 	})	
