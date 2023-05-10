@@ -5,9 +5,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/mikiiiiihara/go-graphql-tutorial/resolver"
-
 	"github.com/graphql-go/handler"
+	"github.com/joho/godotenv"
+	"github.com/mikiiiiihara/go-graphql-tutorial/resolver"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -16,6 +16,11 @@ var users []resolver.User
 var db *gorm.DB
 
 func main() {
+	envImportErr := godotenv.Load()
+	if envImportErr != nil {
+		fmt.Println("Error loading .env file")
+		return
+	}
 	dsn := "host=localhost user=myuser password=mypassword dbname=mydbname port=5432 sslmode=disable TimeZone=Asia/Tokyo"
 	var err error
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})

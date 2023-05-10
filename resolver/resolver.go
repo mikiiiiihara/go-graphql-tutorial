@@ -1,10 +1,6 @@
 package resolver
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-
 	"github.com/graphql-go/graphql"
 	"gorm.io/gorm"
 )
@@ -38,26 +34,6 @@ type Ticker struct {
 	Volume           float64 `json:"volume"`
 	VolumeByProduct  float64 `json:"volume_by_product"`
 }
-
-func (r *Resolver) GetAllUsers(p graphql.ResolveParams) (interface{}, error) {
-	var users []User
-	r.db.Find(&users)
-
-	// コンソールにユーザーを出力
-	for _, user := range users {
-		fmt.Printf("ID: %d, Name: %s, Email: %s\n", user.ID, user.Name, user.Email)
-	}
-
-	return users, nil
-}
-
-func (r *Resolver) GetUserByID(p graphql.ResolveParams) (interface{}, error) {
-	id := p.Args["id"].(int)
-	var user User
-	r.db.First(&user, id)
-	return user, nil
-}
-
 
 func NewResolver(db *gorm.DB) *Resolver {
 	return &Resolver{db: db}
@@ -119,20 +95,7 @@ func (r *Resolver) CreateSchema() (graphql.Schema, error) {
 			},
 			"cryptoTicker":&graphql.Field{
 				Type: tickerType,
-				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-					resp, err := http.Get("https://api.bitflyer.com/v1/ticker")
-					if err != nil {
-						return nil, err
-					}
-					defer resp.Body.Close()
-
-					var ticker Ticker
-					err = json.NewDecoder(resp.Body).Decode(&ticker)
-					if err != nil {
-						return nil, err
-					}
-					return ticker, nil
-				},
+				Resolve: r.GetCryptoTickers,
 			},
 		},
 	})
