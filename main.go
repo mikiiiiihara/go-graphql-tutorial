@@ -1,49 +1,71 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/http"
+	"my-us-stock-backend/src/repository/user/model"
+	"my-us-stock-backend/src/schema"
+	"my-us-stock-backend/src/schema/generated"
 
-	"github.com/graphql-go/handler"
-	"github.com/joho/godotenv"
-	"github.com/mikiiiiihara/go-graphql-tutorial/resolver"
+	"my-us-stock-backend/src/controller"
+
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-var users []resolver.User
-var db *gorm.DB
+func Migrate(db *gorm.DB) {
+    // モデルに基づいてテーブルを作成または更新
+    db.AutoMigrate(&model.User{})
+}
 
 func main() {
-	envImportErr := godotenv.Load()
-	if envImportErr != nil {
-		fmt.Println("Error loading .env file")
-		return
-	}
-	dsn := "host=localhost user=myuser password=mypassword dbname=mydbname port=5432 sslmode=disable TimeZone=Asia/Tokyo"
-	var err error
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		panic("failed to connect database")
-	}
+    // PostgreSQLデータベースに接続
+    dsn := "host=localhost user=myuser password=mypassword dbname=mydbname port=5432 sslmode=disable TimeZone=Asia/Tokyo"
+    db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+    if err != nil {
+        log.Fatalf("Failed to connect to database: %v", err)
+    }
 
-	db.AutoMigrate(&resolver.User{})
+	// マイグレーションの実行
+    Migrate(db)
 
-	resolver := resolver.NewResolver(db)
-	schema, err := resolver.CreateSchema()
-	if err != nil {
-		log.Fatalf("failed to create new schema, error: %v", err)
-	}
+    // コントローラレジストリの作成
+    controllerModule := controller.NewControllerModule(db)
 
-	h := handler.New(&handler.Config{
-		Schema:   &schema,
-		Pretty:   true,
-		GraphiQL: true,
-	})
+    // Gin HTTPサーバーの初期化
+    r := gin.Default()
 
-	// エンドポイントを定義
-	http.Handle("/graphql", h)
-	fmt.Println("Listening on :8080...")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+    // コントローラレジストリを使用してREST APIルートを登録
+    controllerModule.RegisterRoutes(r)
+
+    // GraphQLのエンドポイントのセットアップ
+    r.POST("/graphql", graphqlHandler(db))
+    r.GET("/graphql", playgroundHandler())
+
+    // サーバーを起動
+    err = r.Run(":4000")
+    if err != nil {
+        log.Fatalf("Failed to run server: %v", err)
+    }
+}
+
+// GraphQLハンドラ関数
+func graphqlHandler(db *gorm.DB) gin.HandlerFunc {
+	resolver := schema.NewSchemaModule(db)
+    h := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
+
+    return func(c *gin.Context) {
+        h.ServeHTTP(c.Writer, c.Request)
+    }
+}
+
+// Playgroundハンドラ関数
+func playgroundHandler() gin.HandlerFunc {
+    h := playground.Handler("GraphQL", "/graphql")
+
+    return func(c *gin.Context) {
+        h.ServeHTTP(c.Writer, c.Request)
+    }
 }
